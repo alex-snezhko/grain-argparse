@@ -1,0 +1,22 @@
+module Main
+
+include "./argparse"
+
+// user code
+// rm -rf a b
+
+let run = ((recursive, force, dirs)) => {
+  void
+}
+
+let toEval = ctx => {
+  let isRec = Args.flag(ctx, ["-r", "--recursive"])
+  let force = Args.flag(ctx, ["-f", "--force"])
+  let dirs = Args.all(ctx)
+  (isRec, force, dirs)
+}
+
+let (isRec, force, dirs) = Args.eval(toEval)
+print(isRec)
+print(force)
+print(dirs)

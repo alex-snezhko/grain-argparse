@@ -1,0 +1,110 @@
+module Args
+
+include "char"
+include "string"
+include "list"
+include "array"
+include "result"
+include "sys/process"
+
+enum LongOption {
+  NoValue(String),
+  WithValue(String, String),
+}
+
+enum Token {
+  Option(Char),
+  LongOption(LongOption),
+  String(String),
+}
+
+abstract record Context {
+  rawArgs: Array<String>,
+  tokens: List<Token>,
+}
+
+let isAlnum = char => {
+  let code = Char.code(char)
+  code >= 48 && code <= 57 ||
+    code >= 65 && code <= 90 ||
+    code >= 97 && code <= 122
+}
+
+let tokenize = args => {
+  let mut endOptions = false
+  List.flatMap(arg => {
+    match (arg) {
+      "--" => {
+        endOptions = true
+        []
+      },
+      _ when (
+        !endOptions && String.length(arg) >= 2 && String.charAt(0, arg) == '-'
+      ) => {
+        let strChars = String.explode(String.slice(1, arg))
+        if (Array.every(isAlnum, strChars)) {
+          Array.toList(Array.map(c => Option(c), strChars))
+        } else {
+          fail ""
+        }
+      },
+      _ when (
+        !endOptions &&
+        String.length(arg) >= 3 &&
+        String.slice(0, end=2, arg) == "--"
+      ) => {
+        let str = String.slice(2, arg)
+        let eqIndex = String.indexOf("=", str)
+        let longOption = match (eqIndex) {
+          None => NoValue(str),
+          Some(i) =>
+            WithValue(String.slice(0, end=i, str), String.slice(i + 1, str)),
+        }
+        [LongOption(longOption)]
+      },
+      _ => [String(arg)],
+    }
+  }, args)
+}
+
+provide let flag = (ctx, strings) => {
+  List.forEach(str => {
+    if (
+      String.length(str) < 2 ||
+      String.slice(0, end=2, str) != "--" ||
+      String.charAt(0, str) != '-'
+    ) {
+      fail "Invalid flag option " ++
+        str ++
+        "; flags should either begin with - for short options or -- for long options"
+    }
+  }, strings)
+
+  List.some(tok => match (tok) {
+    Option(c) => List.some(s => s == Char.toString(c), strings),
+    LongOption(NoValue(o)) => List.some(s => s == o, strings),
+    _ => false,
+  }, ctx.tokens)
+}
+
+provide let count = (ctx, strings) => {
+  false
+}
+
+provide let value = (ctx, string) => {
+  false
+}
+
+provide let valueWithDefault = (ctx, string, default) => {
+  false
+}
+
+provide let all = (ctx) => {
+  Array.toList(ctx.rawArgs)
+}
+
+provide let eval = evalFn => {
+  let rawArgs = Result.unwrap(Process.argv())
+  let ctx = { rawArgs, tokens: tokenize(Array.toList(rawArgs)) }
+  evalFn(ctx)
+}
